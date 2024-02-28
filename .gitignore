@@ -1,0 +1,23 @@
+# Compiled object files
+*.o
+*.obj
+
+# Executables
+*.exe
+*.out
+
+# CMake build directory
+build/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# Dependency directories
+vendor/

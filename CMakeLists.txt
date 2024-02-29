@@ -6,6 +6,8 @@ enable_testing()
 
 add_executable(c_quad_tree main.c)
 
+target_link_libraries(c_quad_tree m)
+
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)

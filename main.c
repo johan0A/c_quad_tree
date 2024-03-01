@@ -17,6 +17,16 @@ struct QuadTree {
     int height;
 };
 
+struct Node* createNode() {
+    struct Node* node = malloc(sizeof(struct Node));
+    for (int i = 0; i < 4; i++) {
+        node->childrens[i] = NULL;
+    }
+    node->parent = NULL;
+    return node;
+}
+
+
 struct QuadTree* createQuadTree() {
     struct QuadTree *tree = (struct QuadTree *)malloc(sizeof(struct QuadTree));
     tree->root = NULL;
@@ -28,14 +38,6 @@ struct QuadTree* createQuadTree() {
     return tree;
 }
 
-struct Node* createNode() {
-    struct Node* node = malloc(sizeof(struct Node));
-    for (int i = 0; i < 4; i++) {
-        node->childrens[i] = NULL;
-    }
-    node->parent = NULL;
-    return node;
-}
 
 void expand_quadtree(struct QuadTree* quadTree, int quadrant) {
     struct Node* temp_root = quadTree->root;
@@ -89,23 +91,32 @@ void insert_in_quadtree(struct QuadTree* quadTree, void* leaf, int positionX, in
     }
 }
 
-void _show_quadtree_as_tree(struct QuadTree* quadTree, struct Node* currentNode, int height) {
+void _show_quadtree_as_tree(struct QuadTree* quadTree, struct Node* currentNode, int height, void printLeaf(void* leaf)) {
     if (currentNode == NULL) {
         return;
     }
     for (int i = 0; i < 4; i++) {
         if (currentNode->childrens[i] != NULL && height > 1) {
+            for(int j = 0; j < quadTree->height - height + 1; j++) {
+                printf("  ");
+            }
             printf("Node %d\n", i);
-            _show_quadtree_as_tree(quadTree, (struct Node*)currentNode->childrens[i], height-1);
+            _show_quadtree_as_tree(quadTree, (struct Node*)currentNode->childrens[i], height-1, printLeaf);
         } else if (currentNode->childrens[i] != NULL && height == 1) {
-            printf("Leaf %d\n", i);
+            for(int j = 0; j < quadTree->height - height + 1; j++) {
+                printf("  ");
+            }
+            printf("Leaf %d: ", i);
+            printLeaf(currentNode->childrens[i]);
+            printf("\n");
         }
     }
     return;
 }
 
-void show_quadtree_as_tree(struct QuadTree* quadTree) {
-    _show_quadtree_as_tree(quadTree, quadTree->root, quadTree->height);
+void show_quadtree_as_tree(struct QuadTree* quadTree, void printLeaf(void* leaf)) {
+    printf("Root\n");
+    _show_quadtree_as_tree(quadTree, quadTree->root, quadTree->height, printLeaf);
     return;
 }
 
@@ -113,6 +124,12 @@ struct Leaf {
     int position[2];
     int ID;
 };
+
+void printLeaf(void* leaf) {
+    struct Leaf* leaf_ = (struct Leaf*)leaf;
+    printf("ID: %d pos: (%d, %d)", leaf_->ID, leaf_->position[0], leaf_->position[1]);
+    return;
+}
 
 struct Leaf* createLeaf(int positionX, int positionY, int ID) {
     struct Leaf* leaf = malloc(sizeof(struct Leaf));
@@ -126,9 +143,10 @@ int main(int argc, char const *argv[]) {
     struct QuadTree* quadTree = createQuadTree();
     struct Leaf* leaf = createLeaf(0, 0, 0);
     insert_in_quadtree(quadTree, leaf, 0, 0);
+    show_quadtree_as_tree(quadTree, printLeaf);
     leaf = createLeaf(1, 1, 1);
     insert_in_quadtree(quadTree, leaf, 1, 1);
-    show_quadtree_as_tree(quadTree);
+    show_quadtree_as_tree(quadTree, printLeaf);
     return 0;
 }
 

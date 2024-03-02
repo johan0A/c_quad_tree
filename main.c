@@ -17,7 +17,7 @@ struct QuadTree {
     int height;
 };
 
-struct Node* createNode() {
+static struct Node* createNode() {
     struct Node* node = malloc(sizeof(struct Node));
     for (int i = 0; i < 4; i++) {
         node->childrens[i] = NULL;
@@ -29,17 +29,17 @@ struct Node* createNode() {
 
 struct QuadTree* createQuadTree() {
     struct QuadTree *tree = (struct QuadTree *)malloc(sizeof(struct QuadTree));
-    tree->root = NULL;
+    tree->root = createNode();
     tree->posMax[0] = -1;
     tree->posMax[1] = -1;
     tree->posMin[0] = 1;
     tree->posMin[1] = 1;
-    tree->height = 0;
+    tree->height = -1;
     return tree;
 }
 
 
-void expand_quadtree(struct QuadTree* quadTree, int quadrant) {
+static void expand_quadtree(struct QuadTree* quadTree, int quadrant) {
     struct Node* temp_root = quadTree->root;
     quadTree->root = createNode();
     quadTree->root->childrens[quadrant] = temp_root;
@@ -49,18 +49,17 @@ void expand_quadtree(struct QuadTree* quadTree, int quadrant) {
 }
 
 void insert_in_quadtree(struct QuadTree* quadTree, void* leaf, int positionX, int positionY) {
-    int overMaxX = (quadTree->posMax[0] < positionX) + (quadTree->posMin[0] > positionX * 2);
-    int overMaxY = (quadTree->posMax[1] < positionY) + (quadTree->posMin[1] > positionY * 2);
     while (true) {
+        int overMaxX = (quadTree->posMax[0] < positionX) + (quadTree->posMin[0] > positionX * 2);
+        int overMaxY = (quadTree->posMax[1] < positionY) + (quadTree->posMin[1] > positionY * 2);
         if (overMaxX || overMaxY) {
-            if (quadTree->root == NULL) {
-                quadTree->root = createNode();
+            if (quadTree->height == -1){
                 quadTree->posMax[0] = positionX;
                 quadTree->posMax[1] = positionY;
                 quadTree->posMin[0] = positionX;
                 quadTree->posMin[1] = positionY;
                 quadTree->height = 1;
-                quadTree->root->childrens[1] = leaf;
+                quadTree->root->childrens[0] = leaf;
                 return;
             }
             expand_quadtree(quadTree, (overMaxX-1) * 2 + (overMaxY-1));
@@ -91,7 +90,7 @@ void insert_in_quadtree(struct QuadTree* quadTree, void* leaf, int positionX, in
     }
 }
 
-void _show_quadtree_as_tree(struct QuadTree* quadTree, struct Node* currentNode, int height, void printLeaf(void* leaf)) {
+static void _show_quadtree_as_tree(struct QuadTree* quadTree, struct Node* currentNode, int height, void printLeaf(void* leaf)) {
     if (currentNode == NULL) {
         return;
     }

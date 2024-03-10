@@ -6,21 +6,21 @@
 #include<stdbool.h>
 
 struct Node {
-    void *childrens[4];
+    void *children[4]; // 0: bottom left 1: top left 2: bottom right 3: top right
     struct Node *parent;
 };
 
 struct QuadTree {
     struct Node *root;
-    int posMax[2];
-    int posMin[2];
+    int global_offset[2];
+    int local_max_pos[2];
     int height;
 };
 
 static struct Node* createNode() {
     struct Node* node = malloc(sizeof(struct Node));
     for (int i = 0; i < 4; i++) {
-        node->childrens[i] = NULL;
+        node->children[i] = NULL;
     }
     node->parent = NULL;
     return node;
@@ -29,67 +29,70 @@ static struct Node* createNode() {
 struct QuadTree* createQuadTree() {
     struct QuadTree *tree = (struct QuadTree *)malloc(sizeof(struct QuadTree));
     tree->root = createNode();
-    tree->posMax[0] = -1;
-    tree->posMax[1] = -1;
-    tree->posMin[0] = 1;
-    tree->posMin[1] = 1;
+    tree->global_offset[0] = -1;
+    tree->global_offset[1] = -1;
+    tree->local_max_pos[0] = -1;
+    tree->local_max_pos[1] = -1;
     tree->height = -1;
     return tree;
 }
 
+
 static void expand_quadtree(struct QuadTree* quadTree, int quadrant) {
     struct Node* temp_root = quadTree->root;
     quadTree->root = createNode();
-    quadTree->root->childrens[quadrant] = temp_root;
+    quadTree->root->children[quadrant] = temp_root;
     temp_root->parent = quadTree->root;
     quadTree->height++;
-    return;
+    quadTree->global_offset[0] -= (quadrant % 2) * (1 << (quadTree->height-1));
+    quadTree->global_offset[1] -= (quadrant / 2) * (1 << (quadTree->height-1));
+    quadTree->local_max_pos[0] = 1 << (quadTree->height-1);
+    quadTree->local_max_pos[1] = 1 << (quadTree->height-1);
 }
 
+
+
 void insert_in_quadtree(struct QuadTree* quadTree, void* leaf, int positionX, int positionY) {
+    int local_positionX;
+    int local_positionY;
+    // expand the quadtree if necessary
     while (true) {
-        int overMaxX = (quadTree->posMax[0] < positionX) + (quadTree->posMin[0] > positionX * 2);
-        int overMaxY = (quadTree->posMax[1] < positionY) + (quadTree->posMin[1] > positionY * 2);
-        if (overMaxX || overMaxY) {
-            if (quadTree->height == -1){
-                quadTree->posMax[0] = positionX + 1;
-                quadTree->posMax[1] = positionY + 1;
-                quadTree->posMin[0] = positionX;
-                quadTree->posMin[1] = positionY;
-                quadTree->height = 1;
-                quadTree->root->childrens[0] = leaf;
-                return;
-            }
-            expand_quadtree(quadTree, (overMaxX-1) * 2 + (overMaxY-1));
-            break;
-        } else {
+        local_positionX = positionX - quadTree->global_offset[0];
+        local_positionY = positionY - quadTree->global_offset[1];
+        int quadrantX = !(local_positionX > quadTree->local_max_pos[0]) * 2 - (local_positionX < 0);
+        int quadrantY = !(local_positionY < 0) * 2 - (local_positionY > quadTree->local_max_pos[1]);
+
+        if (quadrantX == 2 && quadrantY == 2) {
             break;
         }
+
+        if (quadTree->height == -1){
+            quadTree->height = 1;
+            quadTree->global_offset[0] = positionX;
+            quadTree->global_offset[1] = positionY;
+            quadTree->local_max_pos[0] = 1;
+            quadTree->local_max_pos[1] = 1;
+            quadTree->root->children[0] = leaf;
+            return;
+        }
+
+        expand_quadtree(quadTree, (quadrantX - 1) + (quadrantY - 1) * 2);
     }
 
+    // insert the leaf
     struct Node* currentNode = quadTree->root;
-    int currentX = quadTree->posMin[0];
-    int currentY = quadTree->posMin[1];
     int height = quadTree->height - 1;
-    while (height > 0) {
-        height--;
-        int quadrant = 0;
-        if (positionX > currentX + (1 << (height-1))) {
-            quadrant += 1;
-            currentX += (1 << (height-1));
+    int quadrant;
+    for (int i = 0; i < height; i++) {
+        quadrant = (local_positionX > (1 << (height - i - 1))) + (local_positionY > (1 << (height - i - 1))) * 2;
+        if (currentNode->children[quadrant] == NULL) {
+            currentNode->children[quadrant] = createNode();
+            ((struct Node*)currentNode->children[quadrant])->parent = currentNode;
         }
-        if (positionY > currentY + (1 << (height-1))) {
-            quadrant += 2;
-            currentY += (1 << (height-1));
-        }
-        if (currentNode->childrens[quadrant] == NULL) {
-            currentNode->childrens[quadrant] = createNode();
-            ((struct Node*)currentNode->childrens[quadrant])->parent = currentNode;
-        }
-        currentNode = (struct Node*)currentNode->childrens[quadrant];
+        currentNode = (struct Node*)currentNode->children[quadrant];
     }
-    int quadrant = (positionX > currentX) + (positionY > currentY) * 2;
-    ((struct Node*)currentNode)->childrens[quadrant] = leaf;
+    quadrant = (local_positionX > 0) + (local_positionY > 0) * 2;
+    currentNode->children[quadrant] = leaf;
 }
 
 static void _show_quadtree_as_tree(struct QuadTree* quadTree, struct Node* currentNode, int height, void printLeaf(void* leaf)) {
@@ -97,18 +100,18 @@ static void _show_quadtree_as_tree(struct QuadTree* quadTree, struct Node* curre
         return;
     }
     for (int i = 0; i < 4; i++) {
-        if (currentNode->childrens[i] != NULL && height > 1) {
+        if (currentNode->children[i] != NULL && height > 1) {
             for(int j = 0; j < quadTree->height - height + 1; j++) {
                 printf("  ");
             }
             printf("%d: Node\n", i);
-            _show_quadtree_as_tree(quadTree, (struct Node*)currentNode->childrens[i], height-1, printLeaf);
-        } else if (currentNode->childrens[i] != NULL && height == 1) {
+            _show_quadtree_as_tree(quadTree, (struct Node*)currentNode->children[i], height-1, printLeaf);
+        } else if (currentNode->children[i] != NULL && height == 1) {
             for(int j = 0; j < quadTree->height - height + 1; j++) {
                 printf("  ");
             }
             printf("%d: ", i);
-            printLeaf(currentNode->childrens[i]);
+            printLeaf(currentNode->children[i]);
             printf("\n");
         } else {
             // for(int j = 0; j < quadTree->height - height + 1; j++) {
@@ -149,9 +152,15 @@ int main(int argc, char const *argv[]) {
     struct QuadTree* quadTree = createQuadTree();
     struct Leaf* leaf = createLeaf(0, 0, 0);
     insert_in_quadtree(quadTree, leaf, 0, 0);
+    show_quadtree_as_tree(quadTree, printLeaf);
+    leaf = createLeaf(8, 8, 1);
+    insert_in_quadtree(quadTree, leaf, leaf->position[0], leaf->position[1]);
+    leaf = createLeaf(7, 7, 2);
+    insert_in_quadtree(quadTree, leaf, leaf->position[0], leaf->position[1]);
+    
     // show_quadtree_as_tree(quadTree, printLeaf);
-    leaf = createLeaf(50, 50, 1);
-    insert_in_quadtree(quadTree, leaf, 50, 50);
+    // leaf = createLeaf(8, 8, 2);
+    // insert_in_quadtree(quadTree, leaf, leaf->position[0], leaf->position[1]);
     show_quadtree_as_tree(quadTree, printLeaf);
     // leaf = createLeaf(2, 2, 2);
     // insert_in_quadtree(quadTree, leaf, 2, 2);
